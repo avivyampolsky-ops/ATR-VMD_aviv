@@ -1,6 +1,14 @@
 import cv2
+import numpy as np
 from enum import Enum
 from .matchers import _LSH_FLANN_PARAMS, _KDTREE_FLANN_PARAMS
+
+try:
+    import torch
+    import kornia
+except ImportError:
+    torch = None
+    kornia = None
 
 class FeatureExtractorType(Enum):
     ORB = "orb"
@@ -8,6 +16,7 @@ class FeatureExtractorType(Enum):
     AKAZE = "akaze"
     BRISK = "brisk"
     SIFT = "sift"
+    KORNIA_SIFT = "kornia_sift"
 
 class FeatureExtractorBase:
     norm_type = cv2.NORM_HAMMING
@@ -119,3 +128,52 @@ class SiftFeatureExtractor(FeatureExtractorBase):
 
     def get_keypoints_and_descriptors(self, image):
         return self.feature_extractor.detectAndCompute(image, mask=None)
+
+class KorniaSiftFeatureExtractor(FeatureExtractorBase):
+    norm_type = cv2.NORM_L2
+    flann_index_params = _KDTREE_FLANN_PARAMS
+
+    def __init__(self, nfeatures=500, device=None):
+        if torch is None or kornia is None:
+            raise RuntimeError("KorniaSiftFeatureExtractor requires 'torch' and 'kornia'.")
+
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.sift = kornia.feature.SIFTFeature(
+            num_features=nfeatures,
+            upright=False,
+            device=self.device
+        )
+
+    def get_keypoints_and_descriptors(self, image):
+        # Image is expected to be a numpy array (H, W) or (H, W, 1) in uint8 or float32.
+        # Kornia expects (B, 1, H, W) float tensors in range [0, 1].
+
+        if isinstance(image, torch.Tensor):
+            t_img = image
+        else:
+            if image.ndim == 2:
+                img = image[None, None, ...]
+            elif image.ndim == 3:
+                img = image.transpose(2, 0, 1)[None, ...]
+            else:
+                raise ValueError(f"Invalid image shape for Kornia: {image.shape}")
+
+            t_img = kornia.image_to_tensor(image, keepdim=False).float().to(self.device)
+            # Normalize if uint8
+            if t_img.max() > 1.0:
+                t_img /= 255.0
+
+        # Ensure grayscale (B, 1, H, W)
+        if t_img.shape[1] == 3:
+            t_img = kornia.color.rgb_to_grayscale(t_img)
+
+        # Extract features
+        # Kornia SIFT returns: (lafs, responses, descriptors)
+        lafs, responses, descs = self.sift(t_img)
+
+        # Keypoints in Kornia are represented as LAFs (Local Affine Frames) (B, N, 2, 3)
+        # We return the raw tensors to keep everything on GPU for the matching stage.
+        # Format: (lafs, descriptors)
+        # lafs: (1, N, 2, 3)
+        # descriptors: (1, N, 128)
+        return lafs, descs

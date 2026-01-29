@@ -1,6 +1,13 @@
 import cv2
 from enum import Enum
 
+try:
+    import torch
+    import kornia
+except ImportError:
+    torch = None
+    kornia = None
+
 _LSH_FLANN_PARAMS = dict(
     algorithm=6,
     table_number=6,
@@ -16,6 +23,7 @@ class MatcherType(Enum):
     BF = "bf"
     KNN = "knn"
     FLANN = "flann"
+    KORNIA_SNN = "kornia_snn"
 
 class BFMatcher:
     def __init__(self, norm_type=cv2.NORM_HAMMING):
@@ -59,3 +67,28 @@ class FlannMatcher:
             if m.distance < self.ratio * n.distance:
                 good.append(m)
         return sorted(good, key=lambda x: x.distance)
+
+class KorniaMatcher:
+    def __init__(self, ratio=0.8, dist_type="l2"):
+        if torch is None or kornia is None:
+            raise RuntimeError("KorniaMatcher requires 'torch' and 'kornia'.")
+        self.ratio = ratio
+        # kornia.feature.match_snn (Symmetric Nearest Neighbor) or match_mnn (Mutual Nearest Neighbor)
+        # SIFT descriptors are L2 normalized, so "l2" distance is appropriate.
+        self.dist_type = dist_type
+        self.matcher = kornia.feature.DescriptorMatcher(match_mode='snn', th=ratio)
+
+    def match(self, des1, des2):
+        # des1, des2 are expected to be (B, N, D) tensors.
+        # We assume batch size 1 for this use case if not specified.
+        if des1.ndim == 2:
+            des1 = des1.unsqueeze(0)
+        if des2.ndim == 2:
+            des2 = des2.unsqueeze(0)
+
+        # kornia returns (B, num_matches, 2) where the last dim is (idx1, idx2)
+        dists, indices = self.matcher(des1, des2)
+
+        # Return indices tensor (num_matches, 2) and distances for debugging/sorting if needed
+        # We strip the batch dim since we usually process single frames
+        return indices[0], dists[0]

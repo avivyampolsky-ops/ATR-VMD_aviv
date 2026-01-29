@@ -5,6 +5,7 @@ from .translations import (
     HomographyTranslationCPUCppWrapper,
     HomographyTranslationGPUCppWrapper,
 )
+from .homography_pytorch import HomographyTranslationPyTorch
 from .features import FeatureExtractorType
 from .matchers import MatcherType
 
@@ -42,7 +43,19 @@ class Registrator:
                 use_cpp=use_cpp,
             )
         else:
-            if use_cpp and use_cuda:
+            if feature_extractor == FeatureExtractorType.KORNIA_SIFT or matcher == MatcherType.KORNIA_SNN:
+                self._impl = HomographyTranslationPyTorch(
+                    reference,
+                    matcher=matcher,
+                    feature_extractor=feature_extractor,
+                    downscale_factor=downscale_factor,
+                    knn_ratio=knn_ratio,
+                    ransac_reproj_threshold=ransac_reproj_threshold,
+                    min_inliers=min_inliers,
+                    reference_window_frames=reference_window_frames,
+                    enable_timing=enable_timing,
+                )
+            elif use_cpp and use_cuda:
                 self._impl = HomographyTranslationGPUCppWrapper(
                     reference,
                     matcher=matcher,
