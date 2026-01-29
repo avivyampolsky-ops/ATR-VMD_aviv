@@ -88,9 +88,40 @@ required_opencv_libs = [
     "opencv_xfeatures2d",
 ]
 existing_libs = set(opencv_flags["libraries"])
+
+# Only add libraries if they are actually found by pkg-config or likely to exist
+# to prevent linker errors if the user has a partial install.
+# We trust the pkg-config output for what is available.
+if "opencv_xfeatures2d" not in existing_libs and "opencv_xfeatures2d" in output:
+     # Only force add it if we know it's there but maybe missed by our simple parsing
+     # Actually, let's just trust existing_libs + what we verify.
+     pass
+
+# Force add specific libs only if we are reasonably sure they exist or if the user env is standard.
+# For robustness, we will only add required libs that are NOT in existing_libs
+# if we think they might be implicit.
+# However, to respect "don't remove anything" but "let it work", we should
+# try to filter out libs that definitely don't exist in the flags.
+
+final_libs = []
+for lib in opencv_flags["libraries"]:
+    final_libs.append(lib)
+
+# We iterate over our required list. If it's missing from the auto-detected list,
+# we add it ONLY if it seems safe.
 for lib in required_opencv_libs:
     if lib not in existing_libs:
-        opencv_flags["libraries"].append(lib)
+        # Special check for xfeatures2d: if header was missing (likely), the lib might be missing too.
+        # Adding it blindly causes linker error.
+        # We can try to use ldconfig or just skip it if not found by pkg-config.
+        if lib == "opencv_xfeatures2d":
+             # Use a stricter check?
+             # For now, if pkg-config didn't return it, we assume it's missing
+             # and do NOT add it. The C++ code handles the missing header via __has_include.
+             continue
+        final_libs.append(lib)
+
+opencv_flags["libraries"] = final_libs
 
 ext_modules = [
     Pybind11Extension(

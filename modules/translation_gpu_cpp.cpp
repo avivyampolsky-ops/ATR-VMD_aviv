@@ -7,7 +7,10 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/flann.hpp>
+#if __has_include(<opencv2/xfeatures2d.hpp>)
 #include <opencv2/xfeatures2d.hpp>
+#define ENABLE_XFEATURES2D
+#endif
 #include <opencv2/cudaarithm.hpp>
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudawarping.hpp>
@@ -940,10 +943,14 @@ private:
             descriptor_extractor_.release();
             norm_type_ = cv::NORM_HAMMING;
         } else if (feature_type_ == "FAST_BRIEF") {
+#ifdef ENABLE_XFEATURES2D
             fast_detector_ = cv::FastFeatureDetector::create(20, true);
             descriptor_extractor_ = cv::xfeatures2d::BriefDescriptorExtractor::create(32);
             feature_extractor_.release();
             norm_type_ = cv::NORM_HAMMING;
+#else
+            throw std::runtime_error("FAST_BRIEF requires opencv_xfeatures2d (opencv_contrib), which was not found during build.");
+#endif
         } else {
             feature_extractor_ = cv::ORB::create(500);
             descriptor_extractor_.release();
