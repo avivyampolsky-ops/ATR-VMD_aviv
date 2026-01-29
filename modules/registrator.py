@@ -23,6 +23,7 @@ class Registrator:
         knn_ratio=0.75,
         ransac_reproj_threshold=5.0,
         min_inliers=0,
+        max_features=500,
         downscale_factor=1.0,
         reference_window_frames=1,
         use_cuda=False,
@@ -52,6 +53,7 @@ class Registrator:
                     knn_ratio=knn_ratio,
                     ransac_reproj_threshold=ransac_reproj_threshold,
                     min_inliers=min_inliers,
+                    max_features=max_features,
                     reference_window_frames=reference_window_frames,
                     enable_timing=enable_timing,
                 )

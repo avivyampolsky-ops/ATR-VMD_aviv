@@ -69,6 +69,7 @@ class ATR_VMD:
         knn_ratio = cfg.get("registration.homography.knn_ratio", 0.75)
         ransac_reproj_threshold = cfg.get("registration.homography.ransac_reproj_threshold", 5.0)
         min_inliers = cfg.get("registration.homography.min_inliers", 0)
+        max_features = cfg.get("registration.homography.max_features", 500)
         downscale_factor = cfg.get("registration.downscale_factor", 1.0)
         reference_window_frames = cfg.get("registration.reference_window_frames", 1)
         detect_scale = cfg.get("detection.detect_scale", 1.0)
@@ -96,6 +97,7 @@ class ATR_VMD:
             knn_ratio=knn_ratio,
             ransac_reproj_threshold=ransac_reproj_threshold,
             min_inliers=min_inliers,
+            max_features=max_features,
             downscale_factor=downscale_factor,
             reference_window_frames=reference_window_frames,
             use_cuda=use_cuda,
