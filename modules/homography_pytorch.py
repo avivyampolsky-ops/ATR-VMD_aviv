@@ -5,9 +5,11 @@ from time import perf_counter
 try:
     import torch
     import kornia
+    import torch.nn.functional as F
 except ImportError:
     torch = None
     kornia = None
+    F = None
 
 from .features import FeatureExtractorType, KorniaSiftFeatureExtractor
 from .matchers import MatcherType, KorniaMatcher
@@ -27,6 +29,8 @@ class HomographyTranslationPyTorch:
             raise RuntimeError("HomographyTranslationPyTorch requires 'torch' and 'kornia'.")
 
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"HomographyTranslationPyTorch initialized on device: {self.device}")
+
         self._downscale_factor = float(downscale_factor) if downscale_factor else 1.0
         self._knn_ratio = float(knn_ratio)
         self._ransac_threshold = float(ransac_reproj_threshold)
@@ -70,9 +74,25 @@ class HomographyTranslationPyTorch:
         # Convert to Tensor (B, C, H, W)
         ref_tensor = self._to_tensor(reference)
 
-        # Extract Features
+        # Extract Features (on downscaled image if factor != 1.0)
+        ref_tensor_scaled = self._get_scaled_tensor(ref_tensor)
+
         # lafs: (1, N, 2, 3), descs: (1, N, 128)
-        self.lafs_ref, self.descs_ref = self.feature_extractor.get_keypoints_and_descriptors(ref_tensor)
+        self.lafs_ref, self.descs_ref = self.feature_extractor.get_keypoints_and_descriptors(ref_tensor_scaled)
+
+        # Scale keypoints back to original resolution if needed
+        if self._downscale_factor != 1.0:
+             # LAF is (B, N, 2, 3). The center is in the last column.
+             # We scale the translation components.
+             # Alternatively, just scale the centers when we extract them for RANSAC.
+             # But it's cleaner to keep self.lafs_ref in original coordinates?
+             # No, descriptors are invariant, but LAF geometry changes.
+             # Kornia matchers don't use geometry, just descriptors.
+             # RANSAC needs coordinates.
+             # Let's keep LAFs in downscaled coords (since that matches the image content they were extracted from)
+             # and scale the points during RANSAC preparation.
+             pass
+
         self.ref_tensor = ref_tensor
 
         if record_event:
@@ -85,6 +105,16 @@ class HomographyTranslationPyTorch:
             t_img /= 255.0
         # If color, keep it for warping later, but features will convert to gray internally
         return t_img
+
+    def _get_scaled_tensor(self, tensor):
+        if self._downscale_factor == 1.0:
+            return tensor
+        # tensor is (1, C, H, W)
+        return kornia.geometry.transform.resize(
+            tensor,
+            (int(self.h * self._downscale_factor), int(self.w * self._downscale_factor)),
+            interpolation='area'
+        )
 
     def register_frame(self, frame):
         # Enforce no_grad for the entire registration block to speed up inference
@@ -106,8 +136,9 @@ class HomographyTranslationPyTorch:
             t_upload = perf_counter()
             self._timing["upload_gray"] += t_upload - start
 
-        # 2. Extract Features
-        lafs_frame, descs_frame = self.feature_extractor.get_keypoints_and_descriptors(frame_tensor)
+        # 2. Extract Features (Downscaled)
+        frame_tensor_scaled = self._get_scaled_tensor(frame_tensor)
+        lafs_frame, descs_frame = self.feature_extractor.get_keypoints_and_descriptors(frame_tensor_scaled)
 
         if self._timing_enabled:
             t_feats = perf_counter()
@@ -143,6 +174,12 @@ class HomographyTranslationPyTorch:
 
         src_pts = kps_frame[0, indices[:, 0]] # (M, 2)
         dst_pts = kps_ref[0, indices[:, 1]]   # (M, 2)
+
+        # Scale points back to original resolution if downscaling was used
+        if self._downscale_factor != 1.0:
+            scale = 1.0 / self._downscale_factor
+            src_pts *= scale
+            dst_pts *= scale
 
         # Kornia RANSAC
         try:
