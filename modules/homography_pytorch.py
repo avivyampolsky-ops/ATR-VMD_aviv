@@ -87,6 +87,13 @@ class HomographyTranslationPyTorch:
         return t_img
 
     def register_frame(self, frame):
+        # Enforce no_grad for the entire registration block to speed up inference
+        if torch is not None:
+             with torch.no_grad():
+                return self._register_frame_impl(frame)
+        return self._register_frame_impl(frame)
+
+    def _register_frame_impl(self, frame):
         self._frame_count += 1
 
         # Timing start
