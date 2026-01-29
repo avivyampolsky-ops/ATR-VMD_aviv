@@ -30,6 +30,9 @@ class HomographyTranslationPyTorch:
             raise RuntimeError("HomographyTranslationPyTorch requires 'torch' and 'kornia'.")
 
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if self.device.type == "cuda":
+            torch.backends.cudnn.benchmark = True
+
         print(f"HomographyTranslationPyTorch initialized on device: {self.device}")
 
         self._downscale_factor = float(downscale_factor) if downscale_factor else 1.0
@@ -190,7 +193,8 @@ class HomographyTranslationPyTorch:
             H_res = kornia.geometry.ransac.find_homography_ransac(
                 src_pts.unsqueeze(0),
                 dst_pts.unsqueeze(0),
-                ransac_thres=self._ransac_threshold
+                ransac_thres=self._ransac_threshold,
+                max_iter=2000  # Reduced from default 10000 to speed up inference
             )
             # H_res is (H, inliers)
             H = H_res[0]
