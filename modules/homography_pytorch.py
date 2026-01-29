@@ -130,6 +130,10 @@ class HomographyTranslationPyTorch:
         kps_ref = kornia.feature.get_laf_center(self.lafs_ref)
 
         # Gather matched points
+        # match_snn returns indices as pairs of (idx_in_desc1, idx_in_desc2)
+        # descs_frame (1st arg) -> kps_frame -> indices[:, 0]
+        # descs_ref (2nd arg)   -> kps_ref   -> indices[:, 1]
+
         src_pts = kps_frame[0, indices[:, 0]] # (M, 2)
         dst_pts = kps_ref[0, indices[:, 1]]   # (M, 2)
 

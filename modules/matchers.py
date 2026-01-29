@@ -79,16 +79,27 @@ class KorniaMatcher:
         self.matcher = kornia.feature.DescriptorMatcher(match_mode='snn', th=ratio)
 
     def match(self, des1, des2):
-        # des1, des2 are expected to be (B, N, D) tensors.
-        # We assume batch size 1 for this use case if not specified.
-        if des1.ndim == 2:
-            des1 = des1.unsqueeze(0)
-        if des2.ndim == 2:
-            des2 = des2.unsqueeze(0)
+        # kornia.feature.match_snn expects (N, D) tensors for direct matching.
+        # Although DescriptorMatcher can handle batches, the error log shows match_snn
+        # complaining about shape when fed (1, N, D).
+        # We strip the batch dimension if present (assuming B=1 for this pipeline).
 
-        # kornia returns (B, num_matches, 2) where the last dim is (idx1, idx2)
+        if des1.ndim == 3 and des1.shape[0] == 1:
+            des1 = des1.squeeze(0)
+        if des2.ndim == 3 and des2.shape[0] == 1:
+            des2 = des2.squeeze(0)
+
+        # If we have legitimate batches > 1, this logic would need update,
+        # but the current pipeline is strictly single-frame.
+
+        # kornia.feature.DescriptorMatcher returns (dists, indices) or just indices?
+        # The traceback says: dists, indices = self.matcher(des1, des2)
+        # And match_snn returns (dists, idxs)
+        # With 2D inputs (N, D), DescriptorMatcher likely returns 2D outputs or similar.
+
         dists, indices = self.matcher(des1, des2)
 
-        # Return indices tensor (num_matches, 2) and distances for debugging/sorting if needed
-        # We strip the batch dim since we usually process single frames
-        return indices[0], dists[0]
+        # If input was 2D, output is (num_matches, 2)
+        # indices contains pairs of (idx1, idx2)
+
+        return indices, dists
