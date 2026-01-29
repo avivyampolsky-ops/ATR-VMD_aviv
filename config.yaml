@@ -1,0 +1,44 @@
+general:
+  use_cpp: true
+  use_cuda: true
+  input_is_gray: false
+
+debug:
+  debug_mode: true
+  draw_output: true
+  show_pipeline: true
+  enable_timing: true
+  start_frame: 0
+  end_frame: -1
+  fps: 15.0
+
+registration:
+  mode: homography  # "homography" or "translation"
+  downscale_factor: 0.75
+  reference_window_ms: 500.0
+  homography:
+    feature_extractor: FAST_BRIEF  # ORB, FAST_BRIEF, AKAZE, BRISK, SIFT
+    matcher: KNN  # BF, FLANN, KNN
+    knn_ratio: 0.7  # Lowe ratio for KNN match filtering (lower = stricter)
+    ransac_reproj_threshold: 5.0  # max reprojection error (px) for inliers
+    min_inliers: 105
+  translation:
+    method: phase
+    max_shift: 100.0
+    phase_use_cached_fft: true
+    phase_response_threshold: 0.05
+
+detection:
+  detect_scale: 0.75
+  learning_rate: 0.1
+  mog2_var_threshold: 25.0
+
+tracker:
+  kalman:
+    track_min_age: 1
+    easy_iou_thresh: 0.6  # IoU threshold for the fast-path easy-match pass
+    iou_thresh: 0.05  # IoU threshold for the regular assignment pass
+    max_lost: 3  # max missed frames before a track is dropped
+    min_move: 1.0  # min pixel movement to consider a track "moving"
+    ema_alpha: 0.3  # EMA smoothing for the track area
+    dist_gate_scale: 2.0  # gating multiplier for association distance
