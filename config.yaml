@@ -22,6 +22,7 @@ registration:
     knn_ratio: 0.7  # Lowe ratio for KNN match filtering (lower = stricter)
     ransac_reproj_threshold: 5.0  # max reprojection error (px) for inliers
     min_inliers: 105
+    max_features: 1000 # Max features to extract (especially for Kornia/SIFT)
   translation:
     method: phase
     max_shift: 100.0

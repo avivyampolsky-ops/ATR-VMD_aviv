@@ -39,8 +39,13 @@ class HomographyTranslationPyTorch:
         self._timing_enabled = bool(enable_timing)
 
         # Initialize Kornia Components
-        self.feature_extractor = KorniaSiftFeatureExtractor(nfeatures=2000, device=self.device) # Using default from class usually
+        # Use default nfeatures=1000 to balance speed/quality, especially on CPU or weaker GPUs.
+        # This can be made configurable if needed.
+        self.feature_extractor = KorniaSiftFeatureExtractor(nfeatures=1000, device=self.device)
         self.matcher = KorniaMatcher(ratio=self._knn_ratio)
+
+        if self.device.type == "cpu":
+            print("WARNING: HomographyTranslationPyTorch is running on CPU. This will be slow (~5 FPS or less). Check CUDA availability.")
 
         # State
         self._frame_count = 0
